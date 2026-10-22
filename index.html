@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <title>Virus!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css?v=1">
+  <script src="https://cdn.jsdelivr.net/npm/emoji-mart@5/dist/browser.js"></script>
+</head>
+<body>
+
+<!-- Shared gradient used by multicolour cards (fill="url(#vg-rainbow)") -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="vg-rainbow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#E53935"/>
+      <stop offset=".35" stop-color="#F9B800"/>
+      <stop offset=".65" stop-color="#43A047"/>
+      <stop offset="1"   stop-color="#1E88E5"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- LANDING -->
+<div id="screen-landing" class="screen active">
+  <div class="landing-card">
+    <h1 class="game-title">
+      <span class="title-virus"><span class="tv-r">V</span><span class="tv-b">I</span><span class="tv-g">R</span><span class="tv-y">U</span><span class="tv-r">S</span><span class="tv-b">!</span></span>
+    </h1>
+    <p class="tagline">Cuida tu cuerpo. Contagia a los demás.</p>
+    <div class="rules-card">
+      <h2>Cómo jugar</h2>
+      <p>Gana el primero que tenga <strong>4 órganos sanos</strong> de distinto color: corazón, cerebro, estómago y hueso.</p>
+      <p>En tu turno <strong>juega 1 carta</strong> o <strong>descarta de 1 a 3</strong>. Después robas hasta tener 3.</p>
+      <p>Los <strong>virus</strong> infectan órganos de su color (2 virus lo destruyen). Las <strong>medicinas</strong> curan, vacunan y con 2 lo hacen inmune.</p>
+      <button type="button" class="link-btn" onclick="openRules()">Ver todas las reglas →</button>
+    </div>
+    <div class="name-emoji-area">
+      <div class="name-input-row">
+        <button type="button" id="emoji-trigger-btn" class="emoji-trigger" onclick="toggleEmojiPicker(event)" title="Elige un emoji"><span class="emoji-face">🙂</span><span class="emoji-clear">×</span></button>
+        <input type="text" id="player-name" placeholder="Tu nombre" maxlength="16" autocomplete="off">
+      </div>
+      <div id="emoji-picker-wrap" class="emoji-picker-wrap hidden"></div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="create-btn" onclick="handleCreate()">Crear sala</button>
+      <button class="btn btn-secondary" onclick="showJoin()">Unirse con código</button>
+    </div>
+    <div id="join-form" class="hidden" style="display:flex;flex-direction:column;gap:.75rem">
+      <input type="text" id="room-code-input" placeholder="Código de sala (p.ej. XK7M2P)" maxlength="6"
+        autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+      <button class="btn btn-primary" onclick="handleJoin()">Unirse</button>
+    </div>
+    <div id="landing-error" class="error hidden"></div>
+    <p class="muted" style="font-size:.75rem;text-align:center">De 2 a 6 jugadores · No se necesita cuenta</p>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen">
+  <div class="lobby-card">
+    <h2>Sala de espera</h2>
+    <div class="room-code-display">
+      <span>Código:</span>
+      <span id="lobby-code" class="room-code"></span>
+      <button class="btn-copy" onclick="copyCode()">Copiar</button>
+    </div>
+    <div id="player-list" class="player-list"></div>
+    <div class="lobby-actions">
+      <button id="start-btn" class="btn btn-primary hidden" onclick="handleStart()">Iniciar partida</button>
+      <p id="waiting-msg" class="muted">Esperando al anfitrión…</p>
+      <button class="btn btn-ghost btn-sm" onclick="handleLeaveLobby()">Salir de la sala</button>
+    </div>
+    <p class="muted" style="font-size:.75rem;text-align:center">Comparte el código con amigos para unirse</p>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+
+  <!-- Game top bar -->
+  <div class="game-topbar">
+    <span id="end-vote-status" class="end-vote-status"></span>
+    <div id="now-playing-carousel" class="now-playing-carousel hidden"></div>
+    <div class="game-topbar-actions">
+      <button class="game-room-code" id="game-room-code" onclick="copyGameCode(this)" title="Copiar código">
+        <span id="game-room-code-text"></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="openRules()" title="Reglas">📖</button>
+      <button class="btn btn-ghost btn-sm" id="end-game-btn" onclick="handleEndGameVote()">Terminar</button>
+      <button class="btn btn-ghost btn-sm btn-notif" id="notif-toggle-btn" onclick="toggleNotifications()" title="Activar notificaciones">🔕</button>
+      <button class="btn btn-ghost btn-sm btn-spotify" id="spotify-btn" onclick="openSpotifyModal()" title="Spotify">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.160 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-sm btn-lastfm" id="lastfm-btn" onclick="openLastfmModal()" title="Conectar Last.fm">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M10.584 17.21l-.88-2.392s-1.43 1.594-3.573 1.594c-1.897 0-3.244-1.649-3.244-4.288 0-3.382 1.704-4.591 3.381-4.591 2.42 0 3.189 1.567 3.849 3.574l.88 2.749c.88 2.666 2.529 4.81 7.285 4.81 3.409 0 5.718-1.044 5.718-3.793 0-2.227-1.265-3.381-3.63-3.931l-1.758-.385c-1.21-.275-1.567-.77-1.567-1.595 0-.934.742-1.484 1.952-1.484 1.32 0 2.034.495 2.144 1.677l2.749-.33c-.22-2.474-1.924-3.492-4.729-3.492-2.474 0-4.893.935-4.893 3.932 0 1.87.907 3.051 3.189 3.601l1.87.44c1.402.33 1.869.907 1.869 1.704 0 1.017-.99 1.43-2.86 1.43-2.776 0-3.93-1.457-4.59-3.464l-.907-2.75c-1.155-3.573-2.997-4.893-6.653-4.893C2.144 5.333 0 7.89 0 12.233c0 4.18 2.144 6.434 5.993 6.434 3.106 0 4.591-1.457 4.591-1.457z"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-sm btn-music" id="music-toggle-btn" onclick="toggleMusic()" title="Música">🎵</button>
+      <button class="btn btn-ghost btn-sm btn-voice" id="voice-toggle-btn" onclick="toggleVoice()" title="Unirse al chat de voz">🎤</button>
+      <button class="btn btn-ghost btn-sm btn-chat" id="chat-toggle-btn" onclick="toggleChat()" title="Chat">💬<span id="chat-unread" class="chat-unread hidden">0</span></button>
+      <button class="btn btn-danger btn-sm" onclick="handleLeaveGame()">Salir</button>
+    </div>
+  </div>
+
+  <!-- Opponents: each shows their body -->
+  <div id="opponents-row" class="opponents-row"></div>
+
+  <!-- Table: piles, status, turn buttons -->
+  <div class="game-table">
+    <div class="table-center">
+      <div class="pile-area">
+        <div class="pile draw-pile">
+          <div class="vcard-back"><span>VIRUS!</span></div>
+          <span class="pile-label" id="draw-count">Mazo</span>
+        </div>
+        <div class="pile discard-pile">
+          <div id="discard-top"></div>
+          <span class="pile-label">Descarte</span>
+        </div>
+      </div>
+      <div id="game-status" class="game-status"></div>
+      <div id="turn-actions" class="turn-actions"></div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div id="game-log" class="game-log"></div>
+
+  <!-- My body + my hand -->
+  <div class="hand-area">
+    <div class="my-body-head">
+      <span class="hand-label">Tu cuerpo</span>
+      <span id="my-health" class="my-health"></span>
+    </div>
+    <div id="my-body" class="body-row big"></div>
+    <div id="turn-order-info" class="turn-order-info hidden"></div>
+    <div id="hand-label" class="hand-label">Tu mano</div>
+    <div id="player-hand" class="player-hand"></div>
+  </div>
+</div>
+
+<!-- WINNER -->
+<div id="screen-winner" class="screen">
+  <div class="winner-card">
+    <h2 id="winner-title">🎉 ¡Ganador!</h2>
+    <p id="winner-name" class="winner-name"></p>
+    <div id="winner-standings" class="winner-standings hidden"></div>
+    <div class="winner-actions">
+      <button class="btn btn-primary" onclick="backToLobby()">Jugar de nuevo</button>
+      <button class="btn btn-secondary" onclick="showJoinAnother()">Unirse a otra sala</button>
+      <button class="btn btn-ghost" onclick="returnToMain()">Volver al inicio</button>
+    </div>
+    <div id="join-another-form" class="join-another-form hidden">
+      <input type="text" id="winner-room-code" placeholder="Código de sala (p.ej. XK7M2P)" maxlength="6"
+        autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+      <button class="btn btn-primary" onclick="handleJoinAnother()">Unirse</button>
+    </div>
+    <div id="winner-error" class="error hidden"></div>
+  </div>
+</div>
+
+<!-- Chat Panel -->
+<div id="chat-panel" class="chat-panel hidden">
+  <div class="chat-header">
+    <span>Chat</span>
+    <button class="chat-close" onclick="toggleChat()">×</button>
+  </div>
+  <div id="chat-players" class="chat-players"></div>
+  <div id="chat-messages" class="chat-messages"></div>
+  <div class="chat-emotes">
+    <button class="chat-emote-btn" onclick="sendEmote('😂')">😂</button>
+    <button class="chat-emote-btn" onclick="sendEmote('👍')">👍</button>
+    <button class="chat-emote-btn" onclick="sendEmote('🤔')">🤔</button>
+    <button class="chat-emote-btn" onclick="sendEmote('😷')">😷</button>
+    <button class="chat-emote-btn" onclick="sendEmote('🦠')">🦠</button>
+    <button class="chat-emote-btn" onclick="sendEmote('💊')">💊</button>
+    <button class="chat-emote-btn" onclick="sendEmote('😱')">😱</button>
+    <button class="chat-emote-btn" onclick="sendEmote('🤡')">🤡</button>
+  </div>
+  <div class="chat-input-row">
+    <input type="text" id="chat-input" placeholder="Mensaje…" maxlength="100" autocomplete="off" onkeydown="handleChatKeydown(event)">
+    <button class="btn btn-primary btn-sm" onclick="handleChatSend()">→</button>
+  </div>
+</div>
+<!-- Speech bubble overlay -->
+<div id="speech-bubbles" class="speech-bubbles"></div>
+
+<!-- Confirm dialog -->
+<div id="draw-confirm-modal" class="draw-confirm-modal hidden">
+  <div id="draw-confirm-card" class="draw-confirm-card">
+    <div id="draw-confirm-icon" class="draw-confirm-icon"></div>
+    <h3 id="draw-confirm-title" class="draw-confirm-title"></h3>
+    <p id="draw-confirm-msg" class="draw-confirm-msg"></p>
+    <div class="draw-confirm-btns">
+      <button id="draw-confirm-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="draw-confirm-third" class="btn btn-ghost hidden">Terminar</button>
+      <button id="draw-confirm-ok" class="btn btn-secondary">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rules -->
+<div id="rules-modal" class="spotify-modal hidden" onclick="rulesBackdropClick(event)">
+  <div class="spotify-modal-card rules-modal-card">
+    <h3 class="spotify-modal-title">📖 Reglas de Virus!</h3>
+    <div class="rules-body">
+      <h4>Objetivo</h4>
+      <p>Ser el primero en tener <strong>4 órganos sanos</strong> de distinto color delante de ti: ❤️ corazón (rojo), 🧠 cerebro (azul), estómago (verde) y hueso (amarillo). El órgano <strong>multicolor</strong> cuenta como cualquiera de ellos. No puedes tener dos órganos del mismo color.</p>
+      <h4>Tu turno</h4>
+      <p>Siempre tienes 3 cartas. <strong>Juega 1 carta</strong> o <strong>descarta de 1 a 3</strong>, y luego roba hasta volver a tener 3.</p>
+      <h4>Virus</h4>
+      <p>Se juegan sobre órganos de otros jugadores del mismo color. <strong>1 virus</strong> infecta el órgano. <strong>2 virus</strong> lo destruyen y todo va al descarte. Un virus sobre un órgano vacunado destruye la vacuna.</p>
+      <h4>Medicinas</h4>
+      <p>Se juegan sobre tus propios órganos del mismo color. Sobre un órgano infectado lo <strong>curan</strong>. Sobre uno sano lo <strong>vacunan</strong>. Con <strong>2 medicinas</strong> queda <strong>inmune</strong> 🔒 y ya nada le afecta (salvo el Error médico, que cambia el cuerpo entero).</p>
+      <p>Las cartas multicolor sirven para cualquier color.</p>
+      <h4>Tratamientos</h4>
+      <ul>
+        <li>🔄 <strong>Trasplante</strong>: intercambia un órgano entre dos jugadores cualesquiera. Ninguno puede ser inmune ni quedar con colores repetidos.</li>
+        <li>🦹 <strong>Ladrón de órganos</strong>: roba un órgano no inmune a otro jugador, de un color que no tengas.</li>
+        <li>🤧 <strong>Contagio</strong>: pasa todos los virus que puedas de tus órganos a órganos libres (sin virus ni medicinas) de los demás.</li>
+        <li>🧤 <strong>Guante de látex</strong>: todos los demás tiran su mano y pierden su próximo turno.</li>
+        <li>🔀 <strong>Error médico</strong>: cambia todo tu cuerpo por el de otro jugador.</li>
+      </ul>
+      <h4>Cómo jugar aquí</h4>
+      <p>Toca una carta de tu mano y luego toca dónde jugarla: los objetivos válidos brillan. Las cartas sin jugada posible aparecen apagadas; puedes descartarlas con <strong>🗑️ Descartar cartas</strong>.</p>
+    </div>
+    <div class="spotify-modal-btns">
+      <button class="btn btn-primary btn-sm" onclick="closeRules()">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- Voice toast -->
+<div id="voice-toast" class="voice-toast hidden"></div>
+
+<!-- Music Prompt -->
+<div id="music-prompt" class="music-prompt hidden">
+  <div class="music-prompt-card">
+    <div class="music-prompt-icon">🎵</div>
+    <h3 class="music-prompt-title">¿Con música de fondo?</h3>
+    <p class="music-prompt-desc">Añade ambiente a la partida</p>
+    <div class="music-prompt-btns">
+      <button class="btn btn-primary" onclick="enableMusic()">Sí, con música</button>
+      <button class="btn btn-ghost" onclick="disableMusic()">Sin música</button>
+    </div>
+  </div>
+</div>
+
+<!-- Spotify Modal -->
+<div id="spotify-modal" class="spotify-modal hidden" onclick="spotifyModalBackdropClick(event)">
+  <div id="spotify-modal-card" class="spotify-modal-card"></div>
+</div>
+
+<div id="lastfm-modal" class="spotify-modal hidden" onclick="lastfmModalBackdropClick(event)">
+  <div id="lastfm-modal-card" class="spotify-modal-card lastfm-modal-card"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>

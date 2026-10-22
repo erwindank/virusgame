@@ -38,6 +38,19 @@ const MAX_PLAYERS = 6;
 const HAND_SIZE   = 3;
 const ORGANS_TO_WIN = 4;
 
+// Ways to win, picked by the host in the lobby (stored as winMode on the room)
+const WIN_MODES = {
+  healthy:    { name:'Clásico',  icon:'❤️', unit:'sanos',     goal:'4 órganos sanos',     desc:'Gana el primero con 4 órganos sanos (sin virus).' },
+  vaccinated: { name:'Vacunado', icon:'💉', unit:'vacunados', goal:'4 órganos vacunados', desc:'Gana el primero con 4 órganos que tengan al menos 1 medicina (vacunados o inmunes). Partidas más largas.' },
+  // Max 4 players: with 5–6 the organs end up locked on immune bodies and nobody can finish
+  immune:     { name:'Inmune',   icon:'🔒', unit:'inmunes',   goal:'4 órganos inmunes',   desc:'Gana el primero con 4 órganos inmunes. Partidas largas, de 2 a 4 jugadores.', maxPlayers: 4 }
+};
+
+// Most players a room can start (or be joined mid-game) with in its win mode
+function maxPlayersFor(state) {
+  return WIN_MODES[winMode(state)].maxPlayers || MAX_PLAYERS;
+}
+
 const COLOR_NAME = { red:'Rojo', blue:'Azul', green:'Verde', yellow:'Amarillo', multi:'Multicolor' };
 const ORGAN_NAME = { red:'Corazón', blue:'Cerebro', green:'Estómago', yellow:'Hueso', multi:'Órgano multicolor' };
 const TYPE_LABEL = { organ:'Órgano', virus:'Virus', medicine:'Medicina', treatment:'Tratamiento' };
@@ -378,6 +391,7 @@ async function handleCreate() {
     hostId: localUid,
     players: [{ id: localUid, name, cardCount: 0 }],
     currentPlayerIndex: 0,
+    winMode: 'healthy',
     hands: {},
     bodies: {},
     drawPile: [],
@@ -472,7 +486,7 @@ async function handleJoin() {
       localName = existingPlayer.name;
     } else {
       // New player joining mid-game: deal 3 cards and an empty body
-      if (data.players.length >= MAX_PLAYERS) { showLandingError(`Sala llena (máximo ${MAX_PLAYERS})`); return; }
+      if (data.players.length >= maxPlayersFor(data)) { showLandingError(`Sala llena (máximo ${maxPlayersFor(data)})`); return; }
       const uniqueName = getUniqueName(name, data.players);
       const g = { drawPile: [...(data.drawPile || [])], discardPile: [...(data.discardPile || [])] };
       const hand = refillHand(g, [], HAND_SIZE);
@@ -786,7 +800,29 @@ function renderLobby(state) {
     readyArea.innerHTML = '';
   }
 
-  const canStart = state.players.length >= 2;
+  // Win mode: the host picks it, everyone else sees which one is set
+  let modeArea = document.getElementById('lobby-mode-area');
+  if (!modeArea) {
+    modeArea = document.createElement('div');
+    modeArea.id = 'lobby-mode-area';
+    modeArea.className = 'lobby-mode-area';
+    document.querySelector('.lobby-card').insertBefore(modeArea, document.querySelector('.lobby-actions'));
+  }
+  const mode = winMode(state);
+  modeArea.innerHTML = `
+    <div class="mode-label">Cómo se gana</div>
+    <div class="mode-picker">
+      ${Object.entries(WIN_MODES).map(([key, m]) => isHost
+        ? `<button type="button" class="mode-btn ${key === mode ? 'selected' : ''}" onclick="handleSetWinMode('${key}')">
+             <span class="mode-icon">${m.icon}</span><span class="mode-name">${m.name}</span></button>`
+        : `<div class="mode-btn ${key === mode ? 'selected' : 'dim'}">
+             <span class="mode-icon">${m.icon}</span><span class="mode-name">${m.name}</span></div>`
+      ).join('')}
+    </div>
+    <p class="mode-desc">${esc(WIN_MODES[mode].desc)}</p>`;
+
+  const tooMany  = state.players.length > maxPlayersFor(state);
+  const canStart = state.players.length >= 2 && !tooMany;
   const startBtn = document.getElementById('start-btn');
   const waitMsg  = document.getElementById('waiting-msg');
 
@@ -795,7 +831,8 @@ function renderLobby(state) {
 
   if (isHost) {
     startBtn.disabled = !canStart;
-    startBtn.textContent = canStart ? 'Iniciar partida' : 'Esperando jugadores…';
+    startBtn.textContent = tooMany ? `Modo ${WIN_MODES[winMode(state)].name}: máximo ${maxPlayersFor(state)} jugadores`
+                         : canStart ? 'Iniciar partida' : 'Esperando jugadores…';
   }
 
   // Add Bot button (host only)
@@ -818,6 +855,7 @@ function renderLobby(state) {
 
 async function handleStart() {
   if (!roomState || roomState.players.length < 2) return;
+  if (roomState.players.length > maxPlayersFor(roomState)) return;
 
   const g = { drawPile: shuffle(createDeck()), discardPile: [] };
   const players = roomState.players;
@@ -843,11 +881,24 @@ async function handleStart() {
     drawPile: g.drawPile,
     discardPile: [],
     lastAction: null,
-    log: [`¡Partida iniciada! ${players[first].name} va primero.`],
+    log: [
+      `${WIN_MODES[winMode(roomState)].icon} Modo ${WIN_MODES[winMode(roomState)].name}: gana el primero con ${WIN_MODES[winMode(roomState)].goal}.`,
+      `¡Partida iniciada! ${players[first].name} va primero.`
+    ],
     winner: null,
     winnerName: null,
     winnerReason: null,
     endVotes: [],
+    lastActivity: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// Host only: choose how the next game is won
+async function handleSetWinMode(mode) {
+  if (!roomState || roomState.status !== 'lobby' || roomState.hostId !== localUid) return;
+  if (!WIN_MODES[mode] || winMode(roomState) === mode) return;
+  await db.collection(ROOMS).doc(currentRoomId).update({
+    winMode: mode,
     lastActivity: firebase.firestore.FieldValue.serverTimestamp()
   });
 }
@@ -1746,7 +1797,9 @@ function hasColor(body, color) {
   return (body || []).some(s => s.organ.color === color);
 }
 
-function isImmune(slot)   { return slot.medicines.length >= 2; }
+// Immune = 2 medicines on the organ, or the "immune" mark it gets in the
+// Vacunado/Inmune modes (where the two medicines go back to the discard pile)
+function isImmune(slot)   { return !!slot.immune || slot.medicines.length >= 2; }
 function isInfected(slot) { return slot.viruses.length > 0; }
 
 function slotState(slot) {
@@ -1760,10 +1813,25 @@ function healthyCount(body) {
   return (body || []).filter(s => !isInfected(s)).length;
 }
 
-// Win: four healthy organs of different colours (the rules never allow repeats,
-// so any four healthy organs — the multicolour one included — will do).
-function hasWon(body) {
-  return healthyCount(body) >= ORGANS_TO_WIN;
+// The room's win mode, defaulting to the classic rules
+function winMode(state) {
+  return WIN_MODES[state?.winMode] ? state.winMode : 'healthy';
+}
+
+// How many organs already count towards the goal of this mode:
+// healthy = no virus, vaccinated = at least 1 medicine, immune = 2 medicines
+function progressCount(body, mode = 'healthy') {
+  return (body || []).filter(s =>
+    mode === 'immune'     ? isImmune(s) :
+    mode === 'vaccinated' ? (isImmune(s) || s.medicines.length >= 1) :
+                            !isInfected(s)
+  ).length;
+}
+
+// Win: four organs of different colours that meet the mode's goal (the rules never
+// allow repeated colours, so any four — the multicolour one included — will do).
+function hasWon(body, mode = 'healthy') {
+  return progressCount(body, mode) >= ORGANS_TO_WIN;
 }
 
 function playerName(state, pid) {
@@ -1800,7 +1868,7 @@ function contagionPlan(bodies, uid, playerIds) {
   for (const pid of playerIds) {
     if (pid === uid) continue;
     for (const s of bodies[pid] || []) {
-      if (!s.viruses.length && !s.medicines.length) targets.push({ pid, slot: s });
+      if (!s.viruses.length && !s.medicines.length && !isImmune(s)) targets.push({ pid, slot: s });
     }
   }
   const matchT = new Array(targets.length).fill(-1);
@@ -2001,6 +2069,13 @@ function applyEffect(state, g, uid, move) {
         msg = `💉 ${name} vacunó ${ref}.`;
       } else {
         slot.medicines.push(card);
+        // In the Vacunado/Inmune modes the medicines would otherwise pile up on immune
+        // organs until none are left to play and the game can't end, so the organ keeps
+        // an "immune" mark and both medicines go back into circulation.
+        if (winMode(state) !== 'healthy') {
+          discard(...slot.medicines.splice(0));
+          slot.immune = true;
+        }
         msg = `🛡️ ${name} inmunizó ${ref}.`;
       }
       touched.push(`${uid}|${move.oid}`);
@@ -2116,11 +2191,11 @@ function buildMoveUpdate(state, uid, move) {
   let winner = null;
   for (let k = 0; k < n; k++) {
     const p = players[(start + k) % n];
-    if (hasWon(g.bodies[p.id])) { winner = p; break; }
+    if (hasWon(g.bodies[p.id], winMode(state))) { winner = p; break; }
   }
 
   if (winner) {
-    log = addLog(log, `🏆 ¡${winner.name} completó un cuerpo sano y gana la partida!`);
+    log = addLog(log, `🏆 ¡${winner.name} consiguió ${WIN_MODES[winMode(state)].goal} y gana la partida!`);
     Object.assign(update, {
       status: 'ended',
       winner: winner.id,
@@ -2161,12 +2236,13 @@ function computeStandings(state) {
       return {
         id: p.id,
         name: p.name,
+        progress: progressCount(body, winMode(state)),
         healthy: healthyCount(body),
         organs: body.length,
         infected: body.filter(isInfected).length
       };
     })
-    .sort((a, b) => b.healthy - a.healthy || b.organs - a.organs || a.infected - b.infected);
+    .sort((a, b) => b.progress - a.progress || b.healthy - a.healthy || b.organs - a.organs || a.infected - b.infected);
 }
 
 function determineWinner(state) {
@@ -2375,7 +2451,7 @@ function renderOpponents(state, targets) {
     const isTarget = targets.players.has(p.id);
     const hasVoice = !!peerConns[p.id];
     const backs = Array(Math.min(p.cardCount || 0, HAND_SIZE)).fill('<span class="mini-back"></span>').join('');
-    const healthy = Math.min(healthyCount(state.bodies?.[p.id]), ORGANS_TO_WIN);
+    const done = Math.min(progressCount(state.bodies?.[p.id], winMode(state)), ORGANS_TO_WIN);
     return `<div class="opponent ${isCurrent ? 'active-player' : ''} ${p.disconnected ? 'player-disconnected' : ''}
                 ${speakingStates[p.id] ? 'voice-speaking' : ''} ${isTarget ? 'targetable-player' : ''}"
                 data-uid="${esc(p.id)}"${isTarget ? ` onclick="handlePlayerClick('${esc(p.id)}')"` : ''}>
@@ -2387,7 +2463,7 @@ function renderOpponents(state, targets) {
       <div class="body-row mini">${bodyHTML(state, p.id, { targets: targets.slots, picked: selFirst })}</div>
       <div class="opp-foot">
         <span class="opp-backs">${backs || '<span class="opp-nocards">sin cartas</span>'}</span>
-        <span class="opp-health">${healthy}/${ORGANS_TO_WIN} ❤</span>
+        <span class="opp-health" title="${esc(WIN_MODES[winMode(state)].goal)}">${done}/${ORGANS_TO_WIN} ${WIN_MODES[winMode(state)].icon}</span>
       </div>
     </div>`;
   }).join('');
@@ -2449,7 +2525,7 @@ function renderMyBody(state, targets) {
   const body = state.bodies?.[localUid] || [];
   document.getElementById('my-body').innerHTML = bodyHTML(state, localUid, { targets: targets.slots, picked: selFirst });
   document.getElementById('my-health').textContent =
-    `${Math.min(healthyCount(body), ORGANS_TO_WIN)}/${ORGANS_TO_WIN} órganos sanos`;
+    `${WIN_MODES[winMode(state)].icon} ${Math.min(progressCount(body, winMode(state)), ORGANS_TO_WIN)}/${ORGANS_TO_WIN} órganos ${WIN_MODES[winMode(state)].unit}`;
 }
 
 function renderHand(state) {
@@ -2882,12 +2958,12 @@ function renderWinner(state) {
 
   if (reason === 'vote') {
     titleEl.textContent = '🤝 ¡Partida terminada!';
-    nameEl.textContent  = `${state.winnerName || '?'} ganó con más órganos sanos`;
+    nameEl.textContent  = `${state.winnerName || '?'} ganó con más órganos ${WIN_MODES[winMode(state)].unit}`;
   } else if (reason === 'lastPlayer') {
     titleEl.textContent = '🏆 ¡Último en pie!';
     nameEl.textContent  = state.winnerName || '?';
   } else {
-    titleEl.textContent = '🎉 ¡Cuerpo sano!';
+    titleEl.textContent = { healthy: '🎉 ¡Cuerpo sano!', vaccinated: '💉 ¡Cuerpo vacunado!', immune: '🔒 ¡Cuerpo inmune!' }[winMode(state)];
     nameEl.textContent  = `${state.winnerName || '?'} gana`;
   }
 
@@ -2899,7 +2975,7 @@ function renderWinner(state) {
       `<div class="standing-row ${s.id === state.winner ? 'winner-row' : ''}">
         <span class="standing-rank">#${i + 1}</span>
         <span class="standing-name">${esc(s.name)}</span>
-        <span class="standing-stats">${Math.min(s.healthy, ORGANS_TO_WIN)}/${ORGANS_TO_WIN} sanos</span>
+        <span class="standing-stats">${Math.min(s.progress, ORGANS_TO_WIN)}/${ORGANS_TO_WIN} ${WIN_MODES[winMode(state)].unit}</span>
         <div class="body-row mini standing-body">${bodyHTML(state, s.id)}</div>
       </div>`
     ).join('');
@@ -3005,28 +3081,36 @@ async function aiTakeTurn(aiId) {
 
 // ---- Decision helpers ----
 
-// How good a body is: healthy organs count most, protected ones a bit more,
-// infected ones a little (they can still be cured). Four healthy = won.
-function aiBodyValue(body) {
-  let v = 0, healthy = 0;
+// How good a body is for the room's win mode: organs that already meet the goal
+// count most, organs on the way less, infected ones a little (they can be cured).
+// Meeting the goal on all four = won.
+function aiBodyValue(body, mode = 'healthy') {
+  // value of an uninfected organ with 0 / 1 / 2 medicines, per mode
+  const worth = {
+    healthy:    [10, 12.5, 15],
+    vaccinated: [10, 20,   22],
+    immune:     [10, 18,   30]
+  }[mode];
+  let v = 0;
   for (const s of body || []) {
     if (isInfected(s)) { v += 4; continue; }
-    healthy++;
-    v += isImmune(s) ? 15 : s.medicines.length ? 12.5 : 10;
+    v += worth[isImmune(s) ? 2 : Math.min(s.medicines.length, 1)];
   }
-  if (healthy >= ORGANS_TO_WIN) v += 1000;
-  else if (healthy === ORGANS_TO_WIN - 1) v += 6;
+  const done = progressCount(body, mode);
+  if (done >= ORGANS_TO_WIN) v += 1000;
+  else if (done === ORGANS_TO_WIN - 1) v += 6;
   return v;
 }
 
 // Score of a position for the bot: its own body minus the strongest rival's
 // (plus a little for hurting the others too)
 function aiEvaluate(state, bodies, aiId) {
-  const mine = aiBodyValue(bodies[aiId]);
+  const mode = winMode(state);
+  const mine = aiBodyValue(bodies[aiId], mode);
   let rival = 0, total = 0;
   for (const p of state.players) {
     if (p.id === aiId) continue;
-    const v = aiBodyValue(bodies[p.id]);
+    const v = aiBodyValue(bodies[p.id], mode);
     rival = Math.max(rival, v);
     total += v;
   }

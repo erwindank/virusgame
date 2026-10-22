@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/emoji-mart@5/dist/browser.js"></script>
 </head>
 <body>
@@ -34,7 +34,7 @@
     <p class="tagline">Cuida tu cuerpo. Contagia a los demás.</p>
     <div class="rules-card">
       <h2>Cómo jugar</h2>
-      <p>Gana el primero que tenga <strong>4 órganos sanos</strong> de distinto color: corazón, cerebro, estómago y hueso.</p>
+      <p>Gana el primero que tenga <strong>4 órganos sanos</strong> de distinto color: corazón, cerebro, estómago y hueso. En la sala puedes elegir otros modos: <strong>Vacunado</strong> o <strong>Inmune</strong>.</p>
       <p>En tu turno <strong>juega 1 carta</strong> o <strong>descarta de 1 a 3</strong>. Después robas hasta tener 3.</p>
       <p>Los <strong>virus</strong> infectan órganos de su color (2 virus lo destruyen). Las <strong>medicinas</strong> curan, vacunan y con 2 lo hacen inmune.</p>
       <button type="button" class="link-btn" onclick="openRules()">Ver todas las reglas →</button>
@@ -211,6 +211,14 @@
     <div class="rules-body">
       <h4>Objetivo</h4>
       <p>Ser el primero en tener <strong>4 órganos sanos</strong> de distinto color delante de ti: ❤️ corazón (rojo), 🧠 cerebro (azul), estómago (verde) y hueso (amarillo). El órgano <strong>multicolor</strong> cuenta como cualquiera de ellos. No puedes tener dos órganos del mismo color.</p>
+      <h4>Modos de juego</h4>
+      <p>El anfitrión elige el modo en la sala de espera:</p>
+      <ul>
+        <li>❤️ <strong>Clásico</strong>: 4 órganos sanos (sin virus).</li>
+        <li>💉 <strong>Vacunado</strong>: 4 órganos con al menos 1 medicina encima (vacunados o inmunes).</li>
+        <li>🔒 <strong>Inmune</strong>: 4 órganos inmunes. Solo de 2 a 4 jugadores.</li>
+      </ul>
+      <p>En los modos Vacunado e Inmune, cuando un órgano se vuelve inmune sus 2 medicinas vuelven al mazo (el órgano sigue inmune). Así no se acaban las medicinas.</p>
       <h4>Tu turno</h4>
       <p>Siempre tienes 3 cartas. <strong>Juega 1 carta</strong> o <strong>descarta de 1 a 3</strong>, y luego roba hasta volver a tener 3.</p>
       <h4>Virus</h4>
@@ -265,6 +273,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

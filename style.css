@@ -1561,3 +1561,27 @@ em-emoji-picker {
   .pile-card .vc-art .vicon { width: 30px; height: 30px; }
   .pile-card .vc-type, .pile-card .vc-name { font-size: .5rem; }
 }
+
+/* ---- Lobby: win mode picker ---- */
+.lobby-mode-area { display: flex; flex-direction: column; gap: .45rem; }
+.mode-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.mode-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .15rem;
+  padding: .55rem .3rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 600;
+}
+button.mode-btn { cursor: pointer; }
+button.mode-btn:hover { border-color: #4a7eff; }
+.mode-btn.selected { border-color: var(--green); background: rgba(67,160,71,.16); box-shadow: 0 0 0 1px var(--green); }
+.mode-btn.dim { opacity: .4; }
+.mode-icon { font-size: 1.3rem; line-height: 1; }
+.mode-desc { font-size: .8rem; color: #b9c6ea; line-height: 1.4; min-height: 2.2em; }
